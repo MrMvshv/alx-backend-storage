@@ -7,11 +7,11 @@ import redis
 import requests
 from functools import wraps
 from typing import Callable
-from cachetools import TTLCache, cached
+import time
 
 redis_connection = redis.Redis()
 # Create a cache with a 10-second expiration time
-cache = TTLCache(maxsize=100, ttl=10)
+cache = {}
 
 
 def data_cache(method: Callable) -> Callable:
@@ -34,8 +34,17 @@ def data_cache(method: Callable) -> Callable:
 @data_cache
 def get_page(url: str) -> str:
     """returns content of a url after caching"""
+    if url in cache and time.time() - cache[url]["timestamp"] <= 10:
+        return cache[url]["content"]
+
+    # If not in the cache or expired, fetch the content from the URL
     response = requests.get(url)
     if response.status_code == 200:
-        return response.text
+        content = response.text
+
+        # Cache the content with a timestamp
+        cache[url] = {"content": content, "timestamp": time.time()}
+
+        return content
     else:
         raise Exception(f"Failed to fetch URL: {url}")
